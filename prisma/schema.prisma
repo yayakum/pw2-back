@@ -1,0 +1,116 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model Usuario {
+  id          Int        @id @default(autoincrement())
+  username    String     @unique
+  email       String     @unique
+  password    String
+  profilePic  Bytes?
+  bio         String?    @default("")
+  createdAt   DateTime   @default(now())
+  
+  posts       Post[]
+  comentarios Comentario[]
+  mensajesEnviados Message[] @relation("Sender")
+  mensajesRecibidos Message[] @relation("Receiver")
+  notificacionesRecibidas Notification[] @relation("UserNotification")
+  notificacionesEnviadas Notification[] @relation("FromUserNotification")
+  likes        PostLike[]
+  seguidores   UserFollower[] @relation("Seguidor")
+  seguidos     UserFollower[] @relation("Seguido")
+}
+
+model Categoria {
+  id          Int     @id @default(autoincrement())
+  nombre      String  @unique
+  descripcion String?
+  
+  posts       Post[]
+}
+
+model Post {
+  id          Int        @id @default(autoincrement())
+  description String
+  content     Bytes?
+  createdAt   DateTime   @default(now())
+  userId      Int
+  categoryId  Int
+  
+  usuario     Usuario   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  categoria   Categoria @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  comentarios Comentario[]
+  likes       PostLike[]
+  notificaciones Notification[]
+}
+
+model Comentario {
+  id         Int       @id @default(autoincrement())
+  content    String
+  createdAt  DateTime  @default(now())
+  postId     Int
+  userId     Int
+  
+  post       Post      @relation(fields: [postId], references: [id], onDelete: Cascade)
+  usuario    Usuario   @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Message {
+  id         Int      @id @default(autoincrement())
+  content    String
+  isRead     Boolean @default(false)
+  createdAt  DateTime @default(now())
+  senderId   Int
+  receiverId Int
+  
+  sender     Usuario @relation("Sender", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver   Usuario @relation("Receiver", fields: [receiverId], references: [id], onDelete: Cascade)
+}
+
+model Notification {
+  id         Int       @id @default(autoincrement())
+  type       String    // Enum no es soportado directamente en MySQL en Prisma
+  isRead     Boolean   @default(false)
+  createdAt  DateTime  @default(now())
+  userId     Int
+  fromUserId Int?
+  postId     Int?
+  
+  usuario    Usuario   @relation("UserNotification", fields: [userId], references: [id], onDelete: Cascade)
+  fromUser   Usuario?  @relation("FromUserNotification", fields: [fromUserId], references: [id], onDelete: SetNull)
+  post       Post?     @relation(fields: [postId], references: [id], onDelete: Cascade)
+}
+
+model PostLike {
+  id      Int      @id @default(autoincrement())
+  userId  Int
+  postId  Int
+  
+  usuario Usuario @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post    Post    @relation(fields: [postId], references: [id], onDelete: Cascade)
+  
+  @@unique([userId, postId])
+}
+
+model UserFollower {
+  id          Int     @id @default(autoincrement())
+  followerId  Int
+  followedId  Int
+  
+  seguidor    Usuario @relation("Seguidor", fields: [followerId], references: [id], onDelete: Cascade)
+  seguido     Usuario @relation("Seguido", fields: [followedId], references: [id], onDelete: Cascade)
+  
+  @@unique([followerId, followedId])
+}
