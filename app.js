@@ -2,7 +2,7 @@
 
 // Dependencias necesarias
 // npm install express mysql2 bcrypt jsonwebtoken multer cors
-
+//Hola
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
