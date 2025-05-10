@@ -6,6 +6,8 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
+const corsMiddleware = require('./src/middleware/corsMiddleware.js');
+
 const express = require('express');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
@@ -26,7 +28,7 @@ const JWT_SECRET = 'tu_clave_secreta'; // Cambiar en producción
 
 // Middleware
 app.use(express.json());
-app.use(cors());
+app.use(corsMiddleware);
 
 // Middleware de autenticación
 const auth = async (req, res, next) => {
