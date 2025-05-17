@@ -1,28 +1,51 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
-// Función auxiliar para formatear los datos de las publicaciones
+// Función auxiliar mejorada para formatear los datos de las publicaciones
 const formatPostData = (post, userId = null) => {
-    // Función básica para formatear una publicación individual
+    // Verificar si post es nulo o indefinido
+    if (!post) return null;
+    
+    // Función para manejar Buffer correctamente
+    const formatBuffer = (buffer) => {
+        if (!buffer) return null;
+        // Asegurarse de que buffer es una instancia de Buffer
+        const bufferData = Buffer.isBuffer(buffer) ? buffer : Buffer.from(buffer);
+        return bufferData.toString('base64');
+    };
+    
+    // Crear objeto base
     const formattedPost = {
         ...post,
-        // Siempre convertir el contenido binario a base64 y asegurar que contentType esté presente
-        content: post.content ? post.content.toString('base64') : null,
+        // Convertir contenido binario a base64 solo si existe
+        content: post.content ? formatBuffer(post.content) : null,
         contentType: post.contentType || null,
-        // Formatear datos del usuario
-        usuario: post.usuario ? {
-            ...post.usuario,
-            profilePic: post.usuario.profilePic ? post.usuario.profilePic.toString('base64') : null
-        } : null,
-        // Parsear emojiData si existe
-        emojiData: post.emojiData ? JSON.parse(post.emojiData) : null
     };
-
-    // Si se proporciona un userId, verificar si el usuario ha dado like
-    if (userId && post.likes) {
-        formattedPost.hasLiked = post.likes.some(like => like.userId === userId);
+    
+    // Formatear datos del usuario si existen
+    if (post.usuario) {
+        formattedPost.usuario = {
+            ...post.usuario,
+            profilePic: post.usuario.profilePic ? formatBuffer(post.usuario.profilePic) : null
+        };
     }
-
+    
+    // Parsear emojiData si existe y es string
+    if (post.emojiData) {
+        try {
+            formattedPost.emojiData = typeof post.emojiData === 'string' ? 
+                JSON.parse(post.emojiData) : post.emojiData;
+        } catch (e) {
+            console.warn('Error al parsear emojiData:', e);
+            formattedPost.emojiData = post.emojiData;
+        }
+    }
+    
+    // Verificar si el usuario ha dado like
+    if (userId && post.likes) {
+        formattedPost.hasLiked = post.likes.some(like => like.userId === parseInt(userId));
+    }
+    
     return formattedPost;
 };
 
