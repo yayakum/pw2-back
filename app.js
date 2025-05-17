@@ -26,6 +26,12 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const JWT_SECRET = 'tu_clave_secreta'; // Cambiar en producción
 
+const storage = multer.memoryStorage();
+const upload = multer({ 
+  storage: storage,
+  limits: { fileSize: 10 * 1024 * 1024 } // Límite de 10MB
+});
+
 // Middleware
 app.use(express.json());
 app.use(corsMiddleware);
@@ -87,7 +93,7 @@ app.get('/getAllCategories', getAllCategories);
 // ENDPOINTS DE PUBLICACIONES
 
 // Crear publicación
-app.post('/createPost', auth, createPost);
+app.post('/createPost', auth, upload.single('file'), createPost);
 
 // Obtener publicaciones recientes
 app.get('/getRecentPosts', auth, getRecentPosts);

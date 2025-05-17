@@ -1,11 +1,40 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
+// Función auxiliar para formatear los datos de las publicaciones
+const formatPostData = (post, userId = null) => {
+    // Función básica para formatear una publicación individual
+    const formattedPost = {
+        ...post,
+        // Siempre convertir el contenido binario a base64 y asegurar que contentType esté presente
+        content: post.content ? post.content.toString('base64') : null,
+        contentType: post.contentType || null,
+        // Formatear datos del usuario
+        usuario: post.usuario ? {
+            ...post.usuario,
+            profilePic: post.usuario.profilePic ? post.usuario.profilePic.toString('base64') : null
+        } : null,
+        // Parsear emojiData si existe
+        emojiData: post.emojiData ? JSON.parse(post.emojiData) : null
+    };
+
+    // Si se proporciona un userId, verificar si el usuario ha dado like
+    if (userId && post.likes) {
+        formattedPost.hasLiked = post.likes.some(like => like.userId === userId);
+    }
+
+    return formattedPost;
+};
+
 // Crear publicación
 const createPost = async (req, res) => {
     try {
-        const { description, categoryId } = req.body;
+        console.log("Body recibido:", req.body);
+        console.log("Archivo recibido:", req.file);
+        
+        const { description, categoryId, emoji } = req.body;
         const content = req.file ? req.file.buffer : null;
+        const contentType = req.file ? req.file.mimetype : null;
         
         if (!description) {
             return res.status(400).json({ error: 'La descripción es requerida' });
@@ -24,10 +53,23 @@ const createPost = async (req, res) => {
             return res.status(404).json({ error: 'La categoría no existe' });
         }
         
+        // Procesar emoji si está presente
+        let emojiData = null;
+        if (emoji) {
+            try {
+                // Si es string, asumimos que ya es JSON, si no, lo convertimos
+                emojiData = typeof emoji === 'string' ? emoji : JSON.stringify(emoji);
+            } catch (e) {
+                console.error("Error procesando emoji:", e);
+            }
+        }
+        
         const newPost = await prisma.post.create({
             data: {
                 description,
                 content,
+                contentType,
+                emojiData,
                 userId: req.user.id,
                 categoryId: parseInt(categoryId)
             },
@@ -61,18 +103,12 @@ const createPost = async (req, res) => {
             });
         }
         
-        // Formatear la respuesta
-        const formattedPost = {
-            ...newPost,
-            content: newPost.content ? newPost.content.toString('base64') : null,
-            usuario: {
-                ...newPost.usuario,
-                profilePic: newPost.usuario.profilePic ? newPost.usuario.profilePic.toString('base64') : null
-            }
-        };
+        // Formatear la respuesta usando la función auxiliar
+        const formattedPost = formatPostData(newPost);
         
         res.status(201).json(formattedPost);
     } catch (error) {
+        console.error('Error al crear publicación:', error);
         res.status(500).json({ error: 'Error al crear la publicación', details: error.message });
     }
 };
@@ -98,6 +134,14 @@ const getRecentPosts = async (req, res) => {
                     }
                 },
                 categoria: true,
+                likes: {
+                    where: {
+                        userId: req.user.id
+                    },
+                    select: {
+                        userId: true
+                    }
+                },
                 _count: {
                     select: {
                         comentarios: true,
@@ -107,33 +151,14 @@ const getRecentPosts = async (req, res) => {
             }
         });
         
-        // Verificar si el usuario actual ha dado like a cada publicación
-        const postsWithLikeStatus = await Promise.all(posts.map(async (post) => {
-            const hasLiked = await prisma.postLike.findUnique({
-                where: {
-                    userId_postId: {
-                        userId: req.user.id,
-                        postId: post.id
-                    }
-                }
-            });
-            
-            return {
-                ...post,
-                content: post.content ? post.content.toString('base64') : null,
-                usuario: {
-                    ...post.usuario,
-                    profilePic: post.usuario.profilePic ? post.usuario.profilePic.toString('base64') : null
-                },
-                hasLiked: !!hasLiked
-            };
-        }));
+        // Formatear todas las publicaciones utilizando la función auxiliar
+        const formattedPosts = posts.map(post => formatPostData(post, req.user.id));
         
         // Obtener el total de publicaciones para la paginación
         const totalPosts = await prisma.post.count();
         
         res.json({
-            data: postsWithLikeStatus,
+            data: formattedPosts,
             pagination: {
                 total: totalPosts,
                 page: parseInt(page),
@@ -189,6 +214,14 @@ const getFeedPosts = async (req, res) => {
                     }
                 },
                 categoria: true,
+                likes: {
+                    where: {
+                        userId: req.user.id
+                    },
+                    select: {
+                        userId: true
+                    }
+                },
                 _count: {
                     select: {
                         comentarios: true,
@@ -198,27 +231,8 @@ const getFeedPosts = async (req, res) => {
             }
         });
         
-        // Verificar si el usuario actual ha dado like a cada publicación
-        const postsWithLikeStatus = await Promise.all(posts.map(async (post) => {
-            const hasLiked = await prisma.postLike.findUnique({
-                where: {
-                    userId_postId: {
-                        userId: req.user.id,
-                        postId: post.id
-                    }
-                }
-            });
-            
-            return {
-                ...post,
-                content: post.content ? post.content.toString('base64') : null,
-                usuario: {
-                    ...post.usuario,
-                    profilePic: post.usuario.profilePic ? post.usuario.profilePic.toString('base64') : null
-                },
-                hasLiked: !!hasLiked
-            };
-        }));
+        // Formatear todas las publicaciones utilizando la función auxiliar
+        const formattedPosts = posts.map(post => formatPostData(post, req.user.id));
         
         // Obtener el total de publicaciones para la paginación
         const totalPosts = await prisma.post.count({
@@ -230,7 +244,7 @@ const getFeedPosts = async (req, res) => {
         });
         
         res.json({
-            data: postsWithLikeStatus,
+            data: formattedPosts,
             pagination: {
                 total: totalPosts,
                 page: parseInt(page),
@@ -268,6 +282,14 @@ const getPostsByCategory = async (req, res) => {
                     }
                 },
                 categoria: true,
+                likes: {
+                    where: {
+                        userId: req.user.id
+                    },
+                    select: {
+                        userId: true
+                    }
+                },
                 _count: {
                     select: {
                         comentarios: true,
@@ -277,27 +299,8 @@ const getPostsByCategory = async (req, res) => {
             }
         });
         
-        // Verificar si el usuario actual ha dado like a cada publicación
-        const postsWithLikeStatus = await Promise.all(posts.map(async (post) => {
-            const hasLiked = await prisma.postLike.findUnique({
-                where: {
-                    userId_postId: {
-                        userId: req.user.id,
-                        postId: post.id
-                    }
-                }
-            });
-            
-            return {
-                ...post,
-                content: post.content ? post.content.toString('base64') : null,
-                usuario: {
-                    ...post.usuario,
-                    profilePic: post.usuario.profilePic ? post.usuario.profilePic.toString('base64') : null
-                },
-                hasLiked: !!hasLiked
-            };
-        }));
+        // Formatear todas las publicaciones utilizando la función auxiliar
+        const formattedPosts = posts.map(post => formatPostData(post, req.user.id));
         
         // Obtener el total de publicaciones para la paginación
         const totalPosts = await prisma.post.count({
@@ -307,7 +310,7 @@ const getPostsByCategory = async (req, res) => {
         });
         
         res.json({
-            data: postsWithLikeStatus,
+            data: formattedPosts,
             pagination: {
                 total: totalPosts,
                 page: parseInt(page),
@@ -351,6 +354,14 @@ const searchPosts = async (req, res) => {
                     }
                 },
                 categoria: true,
+                likes: {
+                    where: {
+                        userId: req.user.id
+                    },
+                    select: {
+                        userId: true
+                    }
+                },
                 _count: {
                     select: {
                         comentarios: true,
@@ -360,27 +371,8 @@ const searchPosts = async (req, res) => {
             }
         });
         
-        // Verificar si el usuario actual ha dado like a cada publicación
-        const postsWithLikeStatus = await Promise.all(posts.map(async (post) => {
-            const hasLiked = await prisma.postLike.findUnique({
-                where: {
-                    userId_postId: {
-                        userId: req.user.id,
-                        postId: post.id
-                    }
-                }
-            });
-            
-            return {
-                ...post,
-                content: post.content ? post.content.toString('base64') : null,
-                usuario: {
-                    ...post.usuario,
-                    profilePic: post.usuario.profilePic ? post.usuario.profilePic.toString('base64') : null
-                },
-                hasLiked: !!hasLiked
-            };
-        }));
+        // Formatear todas las publicaciones utilizando la función auxiliar
+        const formattedPosts = posts.map(post => formatPostData(post, req.user.id));
         
         // Obtener el total de publicaciones para la paginación
         const totalPosts = await prisma.post.count({
@@ -392,7 +384,7 @@ const searchPosts = async (req, res) => {
         });
         
         res.json({
-            data: postsWithLikeStatus,
+            data: formattedPosts,
             pagination: {
                 total: totalPosts,
                 page: parseInt(page),
@@ -430,6 +422,14 @@ const getUserPosts = async (req, res) => {
                     }
                 },
                 categoria: true,
+                likes: {
+                    where: {
+                        userId: req.user.id
+                    },
+                    select: {
+                        userId: true
+                    }
+                },
                 _count: {
                     select: {
                         comentarios: true,
@@ -439,27 +439,8 @@ const getUserPosts = async (req, res) => {
             }
         });
         
-        // Verificar si el usuario actual ha dado like a cada publicación
-        const postsWithLikeStatus = await Promise.all(posts.map(async (post) => {
-            const hasLiked = await prisma.postLike.findUnique({
-                where: {
-                    userId_postId: {
-                        userId: req.user.id,
-                        postId: post.id
-                    }
-                }
-            });
-            
-            return {
-                ...post,
-                content: post.content ? post.content.toString('base64') : null,
-                usuario: {
-                    ...post.usuario,
-                    profilePic: post.usuario.profilePic ? post.usuario.profilePic.toString('base64') : null
-                },
-                hasLiked: !!hasLiked
-            };
-        }));
+        // Formatear todas las publicaciones utilizando la función auxiliar
+        const formattedPosts = posts.map(post => formatPostData(post, req.user.id));
         
         // Obtener el total de publicaciones para la paginación
         const totalPosts = await prisma.post.count({
@@ -469,7 +450,7 @@ const getUserPosts = async (req, res) => {
         });
         
         res.json({
-            data: postsWithLikeStatus,
+            data: formattedPosts,
             pagination: {
                 total: totalPosts,
                 page: parseInt(page),
@@ -514,6 +495,14 @@ const getPostById = async (req, res) => {
                         createdAt: 'desc'
                     }
                 },
+                likes: {
+                    where: {
+                        userId: req.user.id
+                    },
+                    select: {
+                        userId: true
+                    }
+                },
                 _count: {
                     select: {
                         likes: true
@@ -526,33 +515,17 @@ const getPostById = async (req, res) => {
             return res.status(404).json({ error: 'Publicación no encontrada' });
         }
         
-        // Verificar si el usuario actual ha dado like a la publicación
-        const hasLiked = await prisma.postLike.findUnique({
-            where: {
-                userId_postId: {
-                    userId: req.user.id,
-                    postId: parseInt(postId)
-                }
-            }
-        });
+        // Formatear la publicación usando la función auxiliar
+        const formattedPost = formatPostData(post, req.user.id);
         
-        // Formatear la publicación y comentarios
-        const formattedPost = {
-            ...post,
-            content: post.content ? post.content.toString('base64') : null,
+        // Formatear también los comentarios
+        formattedPost.comentarios = post.comentarios.map(comment => ({
+            ...comment,
             usuario: {
-                ...post.usuario,
-                profilePic: post.usuario.profilePic ? post.usuario.profilePic.toString('base64') : null
-            },
-            comentarios: post.comentarios.map(comment => ({
-                ...comment,
-                usuario: {
-                    ...comment.usuario,
-                    profilePic: comment.usuario.profilePic ? comment.usuario.profilePic.toString('base64') : null
-                }
-            })),
-            hasLiked: !!hasLiked
-        };
+                ...comment.usuario,
+                profilePic: comment.usuario.profilePic ? comment.usuario.profilePic.toString('base64') : null
+            }
+        }));
         
         res.json(formattedPost);
     } catch (error) {
@@ -564,8 +537,9 @@ const getPostById = async (req, res) => {
 const updatePost = async (req, res) => {
     try {
         const { postId } = req.params;
-        const { description, categoryId } = req.body;
+        const { description, categoryId, emoji } = req.body;
         const content = req.file ? req.file.buffer : undefined;
+        const contentType = req.file ? req.file.mimetype : undefined;
         
         // Verificar si la publicación existe y pertenece al usuario
         const post = await prisma.post.findUnique({
@@ -593,11 +567,23 @@ const updatePost = async (req, res) => {
             }
         }
         
+        // Procesar emoji si está presente
+        let emojiData = undefined;
+        if (emoji) {
+            try {
+                emojiData = typeof emoji === 'string' ? emoji : JSON.stringify(emoji);
+            } catch (e) {
+                console.error("Error procesando emoji:", e);
+            }
+        }
+        
         // Preparar objeto de actualización
         const updateData = {};
-        if (description) updateData.description = description;
-        if (content) updateData.content = content;
-        if (categoryId) updateData.categoryId = parseInt(categoryId);
+        if (description !== undefined) updateData.description = description;
+        if (content !== undefined) updateData.content = content;
+        if (contentType !== undefined) updateData.contentType = contentType;
+        if (categoryId !== undefined) updateData.categoryId = parseInt(categoryId);
+        if (emojiData !== undefined) updateData.emojiData = emojiData;
         
         const updatedPost = await prisma.post.update({
             where: {
@@ -616,15 +602,8 @@ const updatePost = async (req, res) => {
             }
         });
         
-        // Formatear la respuesta
-        const formattedPost = {
-            ...updatedPost,
-            content: updatedPost.content ? updatedPost.content.toString('base64') : null,
-            usuario: {
-                ...updatedPost.usuario,
-                profilePic: updatedPost.usuario.profilePic ? updatedPost.usuario.profilePic.toString('base64') : null
-            }
-        };
+        // Formatear la respuesta usando la función auxiliar
+        const formattedPost = formatPostData(updatedPost);
         
         res.json(formattedPost);
     } catch (error) {
