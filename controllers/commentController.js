@@ -70,6 +70,68 @@ const createComment = async (req, res) => {
     }
 };
 
+// Actualizar comentario
+const updateComment = async (req, res) => {
+    try {
+        const { commentId } = req.params;
+        const { content } = req.body;
+        
+        if (!content || content.trim() === '') {
+            return res.status(400).json({ error: 'El contenido del comentario es requerido' });
+        }
+        
+        // Verificar si el comentario existe
+        const comment = await prisma.comentario.findUnique({
+            where: {
+                id: parseInt(commentId)
+            }
+        });
+        
+        if (!comment) {
+            return res.status(404).json({ error: 'Comentario no encontrado' });
+        }
+        
+        // Verificar si el usuario actual es el autor del comentario
+        if (comment.userId !== req.user.id) {
+            return res.status(403).json({ error: 'No tienes permiso para editar este comentario' });
+        }
+        
+        // Actualizar el comentario
+        const updatedComment = await prisma.comentario.update({
+            where: {
+                id: parseInt(commentId)
+            },
+            data: {
+                content: content.trim()
+            },
+            include: {
+                usuario: {
+                    select: {
+                        id: true,
+                        username: true,
+                        profilePic: true
+                    }
+                }
+            }
+        });
+        
+        // Formatear la respuesta
+        const formattedComment = {
+            ...updatedComment,
+            usuario: {
+                ...updatedComment.usuario,
+                profilePic: updatedComment.usuario.profilePic ? updatedComment.usuario.profilePic.toString('base64') : null
+            }
+        };
+        
+        res.json(formattedComment);
+        
+    } catch (error) {
+        console.error('Error updating comment:', error);
+        res.status(500).json({ error: 'Error al actualizar el comentario', details: error.message });
+    }
+};
+
 // Obtener comentarios de una publicación
 const getPostComments = async (req, res) => {
     try {
@@ -178,6 +240,7 @@ const deleteComment = async (req, res) => {
 
 module.exports = {
     createComment,
+    updateComment,
     getPostComments,
     deleteComment
 };

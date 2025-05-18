@@ -560,9 +560,7 @@ const getPostById = async (req, res) => {
 const updatePost = async (req, res) => {
     try {
         const { postId } = req.params;
-        const { description, categoryId, emoji } = req.body;
-        const content = req.file ? req.file.buffer : undefined;
-        const contentType = req.file ? req.file.mimetype : undefined;
+        const { description, categoryId, emoji, removeEmoji, removeMedia } = req.body;
         
         // Verificar si la publicación existe y pertenece al usuario
         const post = await prisma.post.findUnique({
@@ -590,23 +588,46 @@ const updatePost = async (req, res) => {
             }
         }
         
-        // Procesar emoji si está presente
-        let emojiData = undefined;
+        // Preparar objeto de actualización
+        const updateData = {};
+        
+        // Actualizar descripción si se proporcionó
+        if (description !== undefined) {
+            updateData.description = description;
+        }
+        
+        // Actualizar categoría si se proporcionó
+        if (categoryId !== undefined) {
+            updateData.categoryId = parseInt(categoryId);
+        }
+        
+        // Procesar emoji
         if (emoji) {
             try {
-                emojiData = typeof emoji === 'string' ? emoji : JSON.stringify(emoji);
+                updateData.emojiData = typeof emoji === 'string' ? emoji : JSON.stringify(emoji);
             } catch (e) {
                 console.error("Error procesando emoji:", e);
             }
+        } else if (removeEmoji === 'true') {
+            // Si se indicó explícitamente eliminar el emoji
+            updateData.emojiData = null;
+            console.log("Eliminando emoji de la publicación");
         }
         
-        // Preparar objeto de actualización
-        const updateData = {};
-        if (description !== undefined) updateData.description = description;
-        if (content !== undefined) updateData.content = content;
-        if (contentType !== undefined) updateData.contentType = contentType;
-        if (categoryId !== undefined) updateData.categoryId = parseInt(categoryId);
-        if (emojiData !== undefined) updateData.emojiData = emojiData;
+        // Manejar archivo multimedia
+        if (req.file) {
+            // Si hay un nuevo archivo, usarlo
+            updateData.content = req.file.buffer;
+            updateData.contentType = req.file.mimetype;
+            console.log("Actualizando con nuevo archivo:", req.file.mimetype);
+        } else if (removeMedia === 'true') {
+            // Si se indicó eliminar el multimedia
+            updateData.content = null;
+            updateData.contentType = null;
+            console.log("Eliminando archivo multimedia");
+        }
+        
+        console.log("Datos a actualizar:", Object.keys(updateData));
         
         const updatedPost = await prisma.post.update({
             where: {
@@ -630,6 +651,7 @@ const updatePost = async (req, res) => {
         
         res.json(formattedPost);
     } catch (error) {
+        console.error('Error completo al actualizar:', error);
         res.status(500).json({ error: 'Error al actualizar la publicación', details: error.message });
     }
 };
@@ -667,6 +689,94 @@ const deletePost = async (req, res) => {
     }
 };
 
+const getExplorePosts = async (req, res) => {
+    try {
+        const { search, category, since } = req.query;
+        const userId = req.user.id;
+
+        // Obtener IDs de usuarios que el usuario actual sigue
+        const following = await prisma.userFollower.findMany({
+            where: {
+                followerId: userId
+            },
+            select: {
+                followedId: true
+            }
+        });
+
+        const followingIds = following.map(follow => follow.followedId);
+
+        // Consulta base para excluir publicaciones del usuario actual y usuarios seguidos
+        let whereClause = {
+            NOT: [
+                { userId: userId }
+            ]
+        };
+
+        // Añadir usuarios seguidos al filtro NOT si hay alguno
+        if (followingIds.length > 0) {
+            whereClause.NOT.push({ userId: { in: followingIds } });
+        }
+
+        // Filtrar por término de búsqueda si se proporciona
+        if (search) {
+            whereClause.description = {
+                contains: search
+            };
+        }
+
+        // Filtrar por categoría si se proporciona
+        if (category) {
+            whereClause.categoryId = parseInt(category);
+        }
+
+        // Filtrar por tiempo si se proporciona
+        if (since) {
+            whereClause.createdAt = {
+                gte: new Date(since)
+            };
+        }
+
+        // Obtener publicaciones con filtros
+        const posts = await prisma.post.findMany({
+            where: whereClause,
+            include: {
+                usuario: {
+                    select: {
+                        id: true,
+                        username: true,
+                        profilePic: true
+                    }
+                },
+                _count: {
+                    select: {
+                        likes: true,
+                        comentarios: true
+                    }
+                }
+            },
+            orderBy: {
+                createdAt: 'desc'
+            }
+        });
+
+        // Usar la función formatPostData para cada publicación
+        const formattedPosts = posts.map(post => {
+            const formattedPost = formatPostData(post, userId);
+            
+            // Verificar si el usuario ha dado like (mantener esta funcionalidad)
+            return {
+                ...formattedPost,
+                hasLiked: post.hasLiked || false
+            };
+        });
+
+        res.json({ data: formattedPosts });
+    } catch (error) {
+        res.status(500).json({ error: 'Error al obtener publicaciones para explorar', details: error.message });
+    }
+};
+
 module.exports = {
     createPost,
     getRecentPosts,
@@ -676,5 +786,6 @@ module.exports = {
     getUserPosts,
     getPostById,
     updatePost,
-    deletePost
+    deletePost,
+    getExplorePosts
 };

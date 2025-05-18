@@ -14,13 +14,13 @@ const jwt = require('jsonwebtoken');
 const multer = require('multer');
 const cors = require('cors');
 const path = require('path');
-const { register, login, getUserProfile, getOtherUserProfile, updateUserProfile, searchUsers } = require('./controllers/userController');
-const { createPost, getRecentPosts, getFeedPosts, getPostsByCategory, searchPosts, getUserPosts, getPostById, updatePost, deletePost } = require('./controllers/postController');
+const { register, login, getUserProfile, getOtherUserProfile, updateUserProfile, searchUsers, getAllUsersExceptCurrent} = require('./controllers/userController');
+const { createPost, getRecentPosts, getFeedPosts, getPostsByCategory, searchPosts, getUserPosts, getPostById, updatePost, deletePost, getExplorePosts} = require('./controllers/postController');
 const { createCategory, getCategoryById, getAllCategories } = require('./controllers/categoryController');
 const { followUser, unfollowUser, getUserFollowers, getUserFollowing } = require('./controllers/followController');
 const { likePost, unlikePost, getPostLikes } = require('./controllers/likeController');
 const { getUserNotifications, getUnreadNotificationsCount, markNotificationAsRead, markAllNotificationsAsRead, deleteNotification, deleteAllNotifications } = require('./controllers/notificationController');
-const { createComment, getPostComments, deleteComment } = require('./controllers/commentController');
+const { createComment, updateComment, getPostComments, deleteComment } = require('./controllers/commentController');
 const { sendMessage, getUserConversations, getConversationMessages, getUnreadMessageCount, markConversationAsRead, deleteMessage } = require('./controllers/messageController');
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -75,6 +75,9 @@ app.put('/profile', auth, updateUserProfile);
 // Buscar usuarios
 app.get('/search', searchUsers);
 
+// Obtener todos los usuarios excepto el actual
+app.get('/getAllUsersExceptCurrent', auth, getAllUsersExceptCurrent);
+
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 // ENDPOINTS DE CATEGORIAS
@@ -114,10 +117,13 @@ app.get('/getUserPosts/:userId', auth, getUserPosts);
 app.get('/getPostById/:postId', auth, getPostById);
 
 // Actualizar publicación
-app.put('/updatePost/:postId', auth, updatePost);
+app.put('/updatePost/:postId', auth, upload.single('file'), updatePost);
 
 // Eliminar publicación
 app.delete('/deletePost/:postId', auth, deletePost);
+
+// Obtener publicaciones de no seguidos
+app.get('/getExplorePosts', auth, getExplorePosts);
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
@@ -178,6 +184,9 @@ app.get('/getPostLikes/:postId', getPostLikes);
 
 // Crear comentario
 app.post('/createComment/:postId', auth, createComment);
+
+// Actualizar comentario (nuevo endpoint)
+app.put('/updateComment/:commentId', auth, updateComment);
 
 // Obtener comentarios de una publicación
 app.get('/getPostComments/:postId', getPostComments);

@@ -232,11 +232,78 @@ const searchUsers = async (req, res) => {
     }
 };
 
+// Obtener todos los usuarios excepto el actual
+const getAllUsersExceptCurrent = async (req, res) => {
+    try {
+        const currentUserId = req.user.id;
+        const { search } = req.query; // Obtener parámetro de búsqueda
+        
+        // Definir condición de filtro
+        const whereCondition = {
+            NOT: {
+                id: currentUserId
+            }
+        };
+        
+        // Añadir filtro de búsqueda si existe
+        if (search && search.trim()) {
+            whereCondition.OR = [
+                { username: { contains: search.trim() } },
+                { bio: { contains: search.trim() } }
+            ];
+        }
+        
+        const users = await prisma.usuario.findMany({
+            where: whereCondition,
+            select: {
+                id: true,
+                username: true,
+                profilePic: true,
+                bio: true,
+                createdAt: true,
+                _count: {
+                    select: {
+                        posts: true,
+                        seguidores: true,
+                        seguidos: true
+                    }
+                }
+            }
+        });
+        
+        // Verificar si el usuario actual sigue a estos usuarios
+        const followingPromises = users.map(async (user) => {
+            const isFollowing = await prisma.userFollower.findUnique({
+                where: {
+                    followerId_followedId: {
+                        followerId: currentUserId,
+                        followedId: user.id
+                    }
+                }
+            });
+            
+            return {
+                ...user,
+                profilePic: user.profilePic ? user.profilePic.toString('base64') : null,
+                isFollowing: !!isFollowing,
+                followers: user._count.seguidores
+            };
+        });
+        
+        const formattedUsers = await Promise.all(followingPromises);
+        
+        res.json(formattedUsers);
+    } catch (error) {
+        res.status(500).json({ error: 'Error al obtener usuarios', details: error.message });
+    }
+};
+
 module.exports = { 
     register, 
     login, 
     getUserProfile, 
     getOtherUserProfile, 
     updateUserProfile, 
-    searchUsers 
+    searchUsers,
+    getAllUsersExceptCurrent
 };
