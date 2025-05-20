@@ -8,6 +8,9 @@ const SECRET_KEY = 'tu_clave_secreta';
 // Registro de usuario-------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 const register = async (req, res) => {
     const { username, email, password } = req.body;
+    // Obtener la imagen del perfil si fue enviada
+    const profilePic = req.file ? req.file.buffer : null;
+    
     try {
         // Verificar si el usuario ya existe
         const existingUser = await prisma.usuario.findUnique({ where: { email } });
@@ -21,6 +24,7 @@ const register = async (req, res) => {
                 username,
                 email,
                 password: hashedPassword,
+                profilePic: profilePic,
             },
         });
         res.status(201).json({ message: 'Usuario registrado con éxito' });
@@ -40,7 +44,16 @@ const login = async (req, res) => {
         if (!isMatch) return res.status(401).json({ error: 'Contraseña incorrecta' });
 
         const token = jwt.sign({ userId: user.id }, SECRET_KEY, { expiresIn: '1h' });
-        res.json({ token, userId: user.id, username: user.username });
+        
+        // Incluir profilePic en la respuesta (convertido a base64 si existe)
+        const profilePicBase64 = user.profilePic ? user.profilePic.toString('base64') : null;
+        
+        res.json({ 
+            token, 
+            userId: user.id, 
+            username: user.username,
+            profilePic: profilePicBase64
+        });
     } catch (error) {
         res.status(500).json({ error: 'Error en el inicio de sesión' });
     }

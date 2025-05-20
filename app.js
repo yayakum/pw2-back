@@ -58,7 +58,7 @@ const auth = async (req, res, next) => {
 // ENDPOINTS DE USUARIO
 
 // Registro de usuario
-app.post('/register', register);
+app.post('/register', upload.single('profilePic'), register);
 
 // Inicio de sesión
 app.post('/login', login);
@@ -70,7 +70,7 @@ app.get('/profile', auth, getUserProfile);
 app.get('/profile/:userId', auth, getOtherUserProfile);
 
 // Actualizar perfil de usuario
-app.put('/profile', auth, updateUserProfile);
+app.put('/updateprofile', auth, upload.single('profilePic'), updateUserProfile);
 
 // Buscar usuarios
 app.get('/search', searchUsers);
@@ -217,11 +217,11 @@ app.put('/markConversationAsRead/:userId', auth, markConversationAsRead);
 // Eliminar un mensaje (solo el remitente puede eliminar)
 app.delete('/deleteMessage/:messageId', auth, deleteMessage);
 
-
-// Iniciar servidor
-app.listen(PORT, () => {
+// Al final de app.js, después de app.listen
+const server = app.listen(PORT, () => {
   console.log(`Servidor corriendo en puerto ${PORT}`);
 });
 
-
-
+// Importar el módulo socket y pasarle el servidor HTTP
+const { startSocketServer } = require('./socket.js');
+startSocketServer(server);
