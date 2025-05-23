@@ -5,6 +5,13 @@ const jwt = require('jsonwebtoken');
 const prisma = new PrismaClient();
 const SECRET_KEY = 'tu_clave_secreta';
 
+const formatBuffer = (buffer) => {
+    if (!buffer) return null;
+    // Asegurarse de que buffer es una instancia de Buffer
+    const bufferData = Buffer.isBuffer(buffer) ? buffer : Buffer.from(buffer);
+    return bufferData.toString('base64');
+};
+
 // Registro de usuario-------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 const register = async (req, res) => {
     const { username, email, password } = req.body;
@@ -46,7 +53,7 @@ const login = async (req, res) => {
         const token = jwt.sign({ userId: user.id }, SECRET_KEY, { expiresIn: '1h' });
         
         // Incluir profilePic en la respuesta (convertido a base64 si existe)
-        const profilePicBase64 = user.profilePic ? user.profilePic.toString('base64') : null;
+        const profilePicBase64 = formatBuffer(user.profilePic);
         
         res.json({ 
             token, 
@@ -86,9 +93,9 @@ const getUserProfile = async (req, res) => {
         }
         
         // Convertir la imagen de perfil a base64 si existe
-        const userProfile = {
+         const userProfile = {
             ...user,
-            profilePic: user.profilePic ? user.profilePic.toString('base64') : null
+            profilePic: formatBuffer(user.profilePic)
         };
         
         res.json(userProfile);
@@ -137,12 +144,13 @@ const getOtherUserProfile = async (req, res) => {
         // Convertir la imagen de perfil a base64 si existe
         const userProfile = {
             ...user,
-            profilePic: user.profilePic ? user.profilePic.toString('base64') : null,
+            profilePic: formatBuffer(user.profilePic),
             isFollowing: !!isFollowing
         };
         
         res.json(userProfile);
     } catch (error) {
+        console.error('Error in getOtherUserProfile:', error); // ← Agregar log para debug
         res.status(500).json({ error: 'Error al obtener perfil', details: error.message });
     }
 };
@@ -198,7 +206,7 @@ const updateUserProfile = async (req, res) => {
         // Convertir la imagen de perfil a base64 si existe
         const userProfile = {
             ...updatedUser,
-            profilePic: updatedUser.profilePic ? updatedUser.profilePic.toString('base64') : null
+            profilePic: formatBuffer(updatedUser.profilePic)
         };
         
         res.json(userProfile);
@@ -234,9 +242,9 @@ const searchUsers = async (req, res) => {
         });
         
         // Convertir imágenes de perfil a base64
-        const formattedUsers = users.map(user => ({
+       const formattedUsers = users.map(user => ({
             ...user,
-            profilePic: user.profilePic ? user.profilePic.toString('base64') : null
+            profilePic: formatBuffer(user.profilePic)
         }));
         
         res.json(formattedUsers);
@@ -297,7 +305,7 @@ const getAllUsersExceptCurrent = async (req, res) => {
             
             return {
                 ...user,
-                profilePic: user.profilePic ? user.profilePic.toString('base64') : null,
+                profilePic: formatBuffer(user.profilePic),
                 isFollowing: !!isFollowing,
                 followers: user._count.seguidores
             };
