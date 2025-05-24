@@ -107,7 +107,7 @@ const createPost = async (req, res) => {
                 categoria: true
             }
         });
-        
+        /*
         // Obtener seguidores y crear notificaciones en tiempo real
         const followers = await prisma.userFollower.findMany({
             where: {
@@ -130,6 +130,7 @@ const createPost = async (req, res) => {
                 fromUsername: req.user.username
             });
         }
+        */
         
         // Formatear la respuesta usando la función auxiliar (función existente)
         const formattedPost = formatPostData(newPost);

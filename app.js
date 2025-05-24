@@ -37,7 +37,7 @@ const JWT_SECRET = 'tu_clave_secreta'; // Cambiar en producción
 const storage = multer.memoryStorage();
 const upload = multer({ 
   storage: storage,
-  limits: { fileSize: 10 * 1024 * 1024 } // Límite de 10MB
+  limits: { fileSize: 200 * 1024 * 1024 }
 });
 
 // Middleware
@@ -227,7 +227,7 @@ app.delete('/deleteMessage/:messageId', auth, deleteMessage);
 // RUTA DE PRUEBA
 app.get('/', (req, res) => {
   res.json({ 
-    message: 'API funcionando con notificaciones en tiempo real',
+    message: 'SI FUNCIONA :)',
     timestamp: new Date().toISOString(),
     socketConnections: Object.keys(socketManager.getConnectedUsers()).length
   });
@@ -249,15 +249,13 @@ app.use('*', (req, res) => {
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
-// INICIALIZAR SERVIDOR CON SOCKET.IO
+// INICIALIZAR SERVIDOR
 server.listen(PORT, () => {
-  console.log(`🚀 Servidor ejecutándose en puerto ${PORT}`);
-  console.log(`📡 Socket.IO listo para notificaciones en tiempo real`);
+  console.log(`Servidor ejecutándose en puerto ${PORT}`);
+  console.log(`Socket.IO listo para notificaciones en tiempo real`);
 });
 
-// Inicializar el sistema de notificaciones en tiempo real
 const io = socketManager.initialize(server);
-console.log('✅ Sistema de notificaciones en tiempo real activado');
+console.log('Sistema de notificaciones en tiempo real activado');
 
-// Exportar para uso en otros módulos si es necesario
-module.exports = { app, server, io, socketManager };
+// module.exports = { app, server, io, socketManager };
