@@ -14,6 +14,9 @@ const jwt = require('jsonwebtoken');
 const multer = require('multer');
 const cors = require('cors');
 const path = require('path');
+const http = require('http'); // Agregado para Socket.IO
+
+// Importar controllers
 const { register, login, getUserProfile, getOtherUserProfile, updateUserProfile, searchUsers, getAllUsersExceptCurrent} = require('./controllers/userController');
 const { createPost, getRecentPosts, getFeedPosts, getPostsByCategory, searchPosts, getUserPosts, getPostById, updatePost, deletePost, getExplorePosts} = require('./controllers/postController');
 const { createCategory, getCategoryById, getAllCategories } = require('./controllers/categoryController');
@@ -22,7 +25,12 @@ const { likePost, unlikePost, getPostLikes } = require('./controllers/likeContro
 const { getUserNotifications, getUnreadNotificationsCount, markNotificationAsRead, markAllNotificationsAsRead, deleteNotification, deleteAllNotifications } = require('./controllers/notificationController');
 const { createComment, updateComment, getPostComments, deleteComment } = require('./controllers/commentController');
 const { sendMessage, getUserConversations, getConversationMessages, getUnreadMessageCount, markConversationAsRead, deleteMessage } = require('./controllers/messageController');
+
+// Importar el nuevo socketManager
+const { socketManager } = require('./socketManager');
+
 const app = express();
+const server = http.createServer(app); // Crear servidor HTTP para Socket.IO
 const PORT = process.env.PORT || 3000;
 const JWT_SECRET = 'tu_clave_secreta'; // Cambiar en producción
 
@@ -163,7 +171,6 @@ app.get('/getUserFollowers/:userId', auth, getUserFollowers);
 // Obtener usuarios seguidos por un usuario
 app.get('/getUserFollowing/:userId', auth, getUserFollowing);
 
-
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 // ENDPOINTS DE LIKES
@@ -176,7 +183,6 @@ app.delete('/unlikePost/:postId', auth, unlikePost);
 
 // Obtener usuarios que dieron like a una publicación
 app.get('/getPostLikes/:postId', getPostLikes);
-
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
@@ -193,7 +199,6 @@ app.get('/getPostComments/:postId', getPostComments);
 
 // Eliminar comentario
 app.delete('/deleteComment/:commentId', auth, deleteComment);
-
 
 //-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
@@ -217,11 +222,42 @@ app.put('/markConversationAsRead/:userId', auth, markConversationAsRead);
 // Eliminar un mensaje (solo el remitente puede eliminar)
 app.delete('/deleteMessage/:messageId', auth, deleteMessage);
 
-// Al final de app.js, después de app.listen
-const server = app.listen(PORT, () => {
-  console.log(`Servidor corriendo en puerto ${PORT}`);
+//-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+// RUTA DE PRUEBA
+app.get('/', (req, res) => {
+  res.json({ 
+    message: 'API funcionando con notificaciones en tiempo real',
+    timestamp: new Date().toISOString(),
+    socketConnections: Object.keys(socketManager.getConnectedUsers()).length
+  });
 });
 
-// Importar el módulo socket y pasarle el servidor HTTP
-const { startSocketServer } = require('./socket.js');
-startSocketServer(server);
+// MIDDLEWARE DE MANEJO DE ERRORES
+app.use((error, req, res, next) => {
+  console.error('Error:', error);
+  res.status(500).json({ 
+    error: 'Error interno del servidor',
+    details: process.env.NODE_ENV === 'development' ? error.message : undefined
+  });
+});
+
+// MIDDLEWARE PARA RUTAS NO ENCONTRADAS
+app.use('*', (req, res) => {
+  res.status(404).json({ error: 'Ruta no encontrada' });
+});
+
+//-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+// INICIALIZAR SERVIDOR CON SOCKET.IO
+server.listen(PORT, () => {
+  console.log(`🚀 Servidor ejecutándose en puerto ${PORT}`);
+  console.log(`📡 Socket.IO listo para notificaciones en tiempo real`);
+});
+
+// Inicializar el sistema de notificaciones en tiempo real
+const io = socketManager.initialize(server);
+console.log('✅ Sistema de notificaciones en tiempo real activado');
+
+// Exportar para uso en otros módulos si es necesario
+module.exports = { app, server, io, socketManager };

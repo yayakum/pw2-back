@@ -1,4 +1,5 @@
 const { PrismaClient } = require('@prisma/client');
+const { socketManager } = require('../socketManager'); // Importar el socket manager
 const prisma = new PrismaClient();
 
 // Dar like a una publicación
@@ -12,7 +13,12 @@ const likePost = async (req, res) => {
                 id: parseInt(postId)
             },
             include: {
-                usuario: true
+                usuario: {
+                    select: {
+                        id: true,
+                        username: true
+                    }
+                }
             }
         });
         
@@ -42,15 +48,14 @@ const likePost = async (req, res) => {
             }
         });
         
-        // Crear notificación para el autor de la publicación si es otro usuario
+        // Crear notificación en tiempo real para el autor de la publicación si es otro usuario
         if (post.userId !== req.user.id) {
-            await prisma.notification.create({
-                data: {
-                    type: 'like',
-                    userId: post.userId,
-                    fromUserId: req.user.id,
-                    postId: parseInt(postId)
-                }
+            await socketManager.createNotification({
+                type: 'like',
+                userId: post.userId,
+                fromUserId: req.user.id,
+                postId: parseInt(postId),
+                fromUsername: req.user.username
             });
         }
         
@@ -66,6 +71,7 @@ const likePost = async (req, res) => {
             likeCount: likeCount
         });
     } catch (error) {
+        console.error('Error al dar like:', error);
         res.status(500).json({ error: 'Error al dar like', details: error.message });
     }
 };

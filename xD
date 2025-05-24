@@ -108,30 +108,25 @@ const createPost = async (req, res) => {
             }
         });
         
-        // Obtener seguidores y crear notificaciones en tiempo real
+        // Crear notificaciones para los seguidores
         const followers = await prisma.userFollower.findMany({
             where: {
                 followedId: req.user.id
-            },
-            select: {
-                followerId: true
             }
         });
         
         if (followers.length > 0) {
-            const followerIds = followers.map(follower => follower.followerId);
-            
-            // Usar el método de notificaciones masivas del socket manager
-            await socketManager.createBulkNotifications({
-                type: 'new_post',
-                userIds: followerIds,
-                fromUserId: req.user.id,
-                postId: newPost.id,
-                fromUsername: req.user.username
+            await prisma.notification.createMany({
+                data: followers.map(follower => ({
+                    type: 'new_post',
+                    userId: follower.followerId,
+                    fromUserId: req.user.id,
+                    postId: newPost.id
+                }))
             });
         }
         
-        // Formatear la respuesta usando la función auxiliar (función existente)
+        // Formatear la respuesta usando la función auxiliar
         const formattedPost = formatPostData(newPost);
         
         res.status(201).json(formattedPost);

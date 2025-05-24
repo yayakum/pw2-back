@@ -1,4 +1,5 @@
 const { PrismaClient } = require('@prisma/client');
+const { socketManager } = require('../socketManager'); // Importar el socket manager
 const prisma = new PrismaClient();
 
 // Seguir a un usuario
@@ -45,13 +46,12 @@ const followUser = async (req, res) => {
             }
         });
         
-        // Crear notificación
-        await prisma.notification.create({
-            data: {
-                type: 'follow',
-                userId: followedId,
-                fromUserId: req.user.id
-            }
+        // Crear notificación en tiempo real
+        await socketManager.createNotification({
+            type: 'follow',
+            userId: followedId,
+            fromUserId: req.user.id,
+            fromUsername: req.user.username
         });
         
         // Obtener recuentos actualizados
@@ -66,6 +66,7 @@ const followUser = async (req, res) => {
             followerCount: followerCount 
         });
     } catch (error) {
+        console.error('Error al seguir usuario:', error);
         res.status(500).json({ error: 'Error al seguir usuario', details: error.message });
     }
 };
