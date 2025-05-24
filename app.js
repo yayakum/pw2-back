@@ -1,8 +1,5 @@
-// Estructura básica de una API para red social con Node.js, Express y MySQL
-
 // Dependencias necesarias
 // npm install express mysql2 bcrypt jsonwebtoken multer cors
-//Hola
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
@@ -14,9 +11,8 @@ const jwt = require('jsonwebtoken');
 const multer = require('multer');
 const cors = require('cors');
 const path = require('path');
-const http = require('http'); // Agregado para Socket.IO
+const http = require('http');
 
-// Importar controllers
 const { register, login, getUserProfile, getOtherUserProfile, updateUserProfile, searchUsers, getAllUsersExceptCurrent} = require('./controllers/userController');
 const { createPost, getRecentPosts, getFeedPosts, getPostsByCategory, searchPosts, getUserPosts, getPostById, updatePost, deletePost, getExplorePosts} = require('./controllers/postController');
 const { createCategory, getCategoryById, getAllCategories } = require('./controllers/categoryController');
@@ -26,13 +22,12 @@ const { getUserNotifications, getUnreadNotificationsCount, markNotificationAsRea
 const { createComment, updateComment, getPostComments, deleteComment } = require('./controllers/commentController');
 const { sendMessage, getUserConversations, getConversationMessages, getUnreadMessageCount, markConversationAsRead, deleteMessage } = require('./controllers/messageController');
 
-// Importar el nuevo socketManager
 const { socketManager } = require('./socketManager');
 
 const app = express();
-const server = http.createServer(app); // Crear servidor HTTP para Socket.IO
+const server = http.createServer(app); 
 const PORT = process.env.PORT || 3000;
-const JWT_SECRET = 'tu_clave_secreta'; // Cambiar en producción
+const JWT_SECRET = 'tu_clave_secreta'; 
 
 const storage = multer.memoryStorage();
 const upload = multer({ 
@@ -40,11 +35,10 @@ const upload = multer({
   limits: { fileSize: 200 * 1024 * 1024 }
 });
 
-// Middleware
+// Middlewares
 app.use(express.json());
 app.use(corsMiddleware);
 
-// Middleware de autenticación
 const auth = async (req, res, next) => {
   try {
     const token = req.header('Authorization').replace('Bearer ', '');

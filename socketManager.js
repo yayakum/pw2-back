@@ -1,15 +1,14 @@
-// socketManager.js - Gestor centralizado para Socket.IO
 const { Server } = require('socket.io');
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 const jwt = require('jsonwebtoken');
 
-const JWT_SECRET = 'tu_clave_secreta'; // Debe ser la misma que en app.js
+const JWT_SECRET = 'tu_clave_secreta';
 
 class SocketManager {
     constructor() {
         this.io = null;
-        this.connectedUsers = {}; // { userId: socketId }
+        this.connectedUsers = {};
     }
 
     initialize(httpServer) {
@@ -44,8 +43,6 @@ class SocketManager {
                 if (!user) {
                     return next(new Error('Usuario no encontrado'));
                 }
-
-                // Adjuntar usuario al socket
                 socket.user = user;
                 next();
             } catch (error) {
@@ -417,7 +414,6 @@ class SocketManager {
     }
 }
 
-// Exportar una instancia singleton
 const socketManager = new SocketManager();
 
 module.exports = { socketManager };
